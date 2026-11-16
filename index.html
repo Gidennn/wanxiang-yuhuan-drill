@@ -8,7 +8,7 @@
   <title>玉环 · 日落海倒转训练</title>
   <link rel="icon" href="./assets/heroes/176.jpg">
   <link rel="preload" as="image" href="./assets/playing-card-atlas.webp" fetchpriority="high">
-  <link rel="stylesheet" href="./style.css?v=card-motion">
+  <link rel="stylesheet" href="./style.css?v=landscape-entry">
 </head>
 <body>
   <audio id="game-music" preload="auto" loop hidden></audio>
@@ -109,7 +109,12 @@
     <div id="drag-ghost" class="drag-ghost" aria-hidden="true" inert hidden></div>
     <div id="overlay" class="overlay" hidden></div>
   </main>
-  <div id="rotate-note" class="rotate-note"><span aria-hidden="true">↻</span>旋转手机，横屏进入训练</div>
-  <script type="module" src="./app.js?v=card-motion"></script>
+  <div id="rotate-note" class="rotate-note">
+    <span aria-hidden="true">↻</span>
+    <strong>横屏进入训练</strong>
+    <p>可以直接横放手机。屏幕没转过来时，点下方按钮，再把手机向左转。</p>
+    <button id="rotate-play" class="dialog-action primary" type="button">直接横屏玩</button>
+  </div>
+  <script type="module" src="./app.js?v=landscape-entry"></script>
 </body>
 </html>

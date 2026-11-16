@@ -1655,6 +1655,7 @@ const ghost = $("drag-ghost");
 const effectsLayer = $("effects-layer");
 const handViewport = $("hand-viewport");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const portraitViewport = matchMedia("(orientation: portrait) and (max-width: 850px)");
 const statusField = $("round-status");
 const button = (action, label, classes = "dialog-action") =>
   `<button class="${classes}" data-action="${action}">${label}</button>`;
@@ -2035,8 +2036,9 @@ function layoutHand() {
   const row = $("hand");
   const first = row.querySelector(".card");
   if (!first) return;
-  const width = first.getBoundingClientRect().width;
-  const available = row.getBoundingClientRect().width;
+  const axes = arenaAxes();
+  const width = arenaBox(first, axes).width;
+  const available = arenaBox(row, axes).width;
   const spaces = game.hand.length - 1;
   const ideal = Math.max(0, available - width) / Math.max(1, spaces);
   // Round down to the browser's layout unit so the last card fits too.
@@ -2161,10 +2163,28 @@ function announce(message) {
   toastTimer = setTimeout(() => { toast.hidden = true; }, 1000);
 }
 
+function arenaAxes() {
+  const { left, top, right } = arena.getBoundingClientRect();
+  return { left, top, right, sideways: portraitViewport.matches && arena.classList.contains("sideways") };
+}
+
+// The sideways view turns the board clockwise, so undo that turn for inputs and effects.
+function arenaPoint(x, y, axes) {
+  return axes.sideways ? { x: y - axes.top, y: axes.right - x } : { x: x - axes.left, y: y - axes.top };
+}
+
+function arenaBox(node, axes = arenaAxes()) {
+  const rect = node.getBoundingClientRect();
+  const { x: left, y: top } = arenaPoint(axes.sideways ? rect.right : rect.left, rect.top, axes);
+  const width = axes.sideways ? rect.height : rect.width;
+  const height = axes.sideways ? rect.width : rect.height;
+  return { left, top, width, height, right: left + width, bottom: top + height };
+}
+
 function center(node) {
   if (!node?.getClientRects().length) return null;
-  const rect = node.getBoundingClientRect();
-  return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  const rect = arenaBox(node);
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
 function playVisual(node, frames, duration, remove = false, delay = 0) {
@@ -2216,7 +2236,7 @@ function revealArrival(card, from, to, index) {
 function saleFlash(point, energy) {
   if (reducedMotion.matches) return;
   const node = elementFromMarkup(`<span class="sale-flash">${energy > 0 ? "+1" : "✦"}</span>`);
-  node.style.left = `${Math.max(22, Math.min(innerWidth - 22, point.x))}px`;
+  node.style.left = `${Math.max(22, Math.min(arena.clientWidth - 22, point.x))}px`;
   node.style.top = `${point.y}px`;
   effectsLayer.append(node);
   playVisual(node, [
@@ -2279,9 +2299,10 @@ function animateShopCards(slots, stagger = false) {
 
 function captureVisibleHand() {
   if (reducedMotion.matches) return [];
-  const viewport = handViewport.getBoundingClientRect();
+  const axes = arenaAxes();
+  const viewport = arenaBox(handViewport, axes);
   const cards = Array.from($("hand").querySelectorAll("[data-card-id]"), node => ({
-    node, rect: node.getBoundingClientRect(), id: Number(node.dataset.cardId),
+    node, rect: arenaBox(node, axes), id: Number(node.dataset.cardId),
   }));
   return cards.flatMap(({ node, rect, id }, index) => {
     const left = Math.max(rect.left, viewport.left);
@@ -2657,10 +2678,10 @@ function buyFrom(source, position = null, origin = center(source.element), dragg
   });
 }
 
-function dropGeometry(source) {
+function dropGeometry(source, axes) {
   const field = arena.querySelector(".field");
   const tiles = Array.from($("board").children, (tile, position) => {
-    const rect = tile.getBoundingClientRect();
+    const rect = arenaBox(tile, axes);
     return { tile, position, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, rect };
   });
   const freeEffect = source.kind !== "unit" && source.card.def.type !== "hero" && !source.card.def.target;
@@ -2670,11 +2691,11 @@ function dropGeometry(source) {
     source.kind === "unit" || !game.checkPlay(source.card, position));
   const sales = ["left", "right", "bottom"].flatMap(direction => {
     const sell = $(`sell-${direction}`);
-    const rect = sell.getBoundingClientRect();
+    const rect = arenaBox(sell, axes);
     return rect.width ? [{ sell, rect, direction }] : [];
   });
   const first = tiles[0].rect;
-  return { field, rect: field.getBoundingClientRect(), tiles, eligible, freeEffect, sales,
+  return { field, rect: arenaBox(field, axes), tiles, eligible, freeEffect, sales,
     fieldPadX: Math.max(25, first.width * .75), fieldPadY: Math.max(12, first.height * .55),
     sellPad: Math.max(16, first.width * .45) };
 }
@@ -2724,7 +2745,7 @@ function paintDrop(x, y, state) {
 
 function startDragging(state, x, y) {
   state.moved = true;
-  const rect = state.source.element.getBoundingClientRect();
+  const rect = arenaBox(state.source.element, state.axes);
   const fingerX = (state.x - rect.left) / Math.max(rect.width, 1);
   state.gripX = Math.min(.78, Math.max(.22, fingerX));
   state.gripY = state.touch ? .88 : .52;
@@ -2744,7 +2765,7 @@ function startDragging(state, x, y) {
     $("sell-right").firstElementChild.textContent = gain ? "＋1" : "0";
     arena.classList.add("is-selling");
   }
-  state.drop = dropGeometry(state.source);
+  state.drop = dropGeometry(state.source, state.axes);
   playVisual(ghost.firstElementChild, [
     { transform: "scale(.94)", opacity: .84 },
     { transform: "scale(1)", opacity: 1 },
@@ -2806,15 +2827,16 @@ arena.addEventListener("pointerdown", event => {
   if (!source || (activeModal && source.kind !== "choice")) return;
   event.preventDefault();
   arena.setPointerCapture(event.pointerId);
+  const axes = arenaAxes();
   drag = {
-    source, pointer: event.pointerId, x: event.clientX, y: event.clientY,
+    source, pointer: event.pointerId, axes, ...arenaPoint(event.clientX, event.clientY, axes),
     time: performance.now(), moved: false, touch: event.pointerType === "touch",
   };
 });
 
 arena.addEventListener("pointermove", event => {
   if (!drag || drag.pointer !== event.pointerId) return;
-  const { clientX: x, clientY: y } = event;
+  const { x, y } = arenaPoint(event.clientX, event.clientY, drag.axes);
   if (!drag.moved) {
     if (!crossedDragThreshold(drag, x, y) || game.battleShopping) return;
     startDragging(drag, x, y);
@@ -2826,7 +2848,7 @@ arena.addEventListener("pointerup", event => {
   if (!drag || drag.pointer !== event.pointerId) return;
   handledPointer = true;
   const prior = drag;
-  const { clientX: x, clientY: y } = event;
+  const { x, y } = arenaPoint(event.clientX, event.clientY, prior.axes);
   const movedFar = crossedDragThreshold(prior, x, y);
   if (game.battleShopping && (prior.moved || movedFar)) {
     clearDrag();
@@ -2860,6 +2882,7 @@ arena.addEventListener("pointerup", event => {
 });
 arena.addEventListener("pointercancel", event => { if (drag?.pointer === event.pointerId) clearDrag(); });
 arena.addEventListener("lostpointercapture", event => { if (drag?.pointer === event.pointerId) clearDrag(); });
+window.addEventListener("resize", clearDrag);
 arena.addEventListener("contextmenu", event => {
   event.preventDefault();
   const source = sourceOf(event.target);
@@ -3001,6 +3024,12 @@ document.addEventListener("keydown", event => {
 });
 
 newGame();
+$("rotate-play").addEventListener("click", () => {
+  if (!portraitViewport.matches) return;
+  arena.classList.add("sideways");
+  layoutHand();
+  $("end-round").focus({ preventScroll: true });
+});
 if (settings.effectAudio) clips.forEach(audioBytes);
 arena.addEventListener("pointerdown", event => {
   if (event.pointerType === "mouse") unlockEffects();
