@@ -2187,12 +2187,12 @@ function center(node) {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
-function playVisual(node, frames, duration, remove = false, delay = 0) {
+function playVisual(node, frames, duration, remove = false, delay = 0, fill = remove ? "both" : "none") {
   if (reducedMotion.matches || !node?.animate) {
     if (remove) node?.remove();
     return;
   }
-  const animation = node.animate(frames, { duration, delay, easing: "cubic-bezier(.18,.7,.31,1)", fill: remove ? "both" : "none" });
+  const animation = node.animate(frames, { duration, delay, easing: "cubic-bezier(.18,.7,.31,1)", fill });
   if (remove) animation.finished.then(() => node.remove(), () => node.remove());
 }
 
@@ -2258,7 +2258,12 @@ function animateArrivals(priorHand, options, events) {
     slot: $("hand").querySelector(`[data-card-id="${card.id}"]`),
   }));
   let rewardIndex = 0;
+  let transientIndex = 0;
   for (const { card, slot } of arrivals) {
+    if (card.transient) {
+      animateCardReveal(slot, Math.min(transientIndex++, 3) * 14, true);
+      continue;
+    }
     const bought = purchase?.card.id === card.id;
     const to = center(slot);
     if (bought) cardFlight(card, options.origin, to, "purchase-flight", 155);
@@ -2273,14 +2278,39 @@ function animateArrivals(priorHand, options, events) {
   if (purchase) animateShopCards([$("shop-cards").children[purchase.index]]);
 }
 
-function animateCardReveal(slot, delay = 0) {
+function transientFlash(slot, delay = 0) {
+  const flash = document.createElement("span");
+  flash.className = "transient-flash";
+  flash.setAttribute("aria-hidden", "true");
+  slot.append(flash);
+  playVisual(flash, [
+    { opacity: 0, transform: "translateX(-7%)" },
+    { opacity: .9, transform: "translateX(0)", offset: .25 },
+    { opacity: 0, transform: "translateX(16%)" },
+  ], 108, true, delay);
+}
+
+function animateCardReveal(slot, delay = 0, transient = false) {
   if (reducedMotion.matches || !slot?.matches(".card")) return;
   const image = slot.querySelector(".original-face,.card-illustration");
   if (!image) return;
   const back = document.createElement("span");
-  back.className = "card-reveal-back";
+  back.className = `card-reveal-back${transient ? " transient-back" : ""}`;
   back.setAttribute("aria-hidden", "true");
   slot.append(back);
+  if (transient) {
+    playVisual(back, [
+      { opacity: 1, transform: "perspective(300px) rotateY(2deg)" },
+      { opacity: 1, transform: "perspective(300px) rotateY(88deg)" },
+    ], 62, true, delay);
+    playVisual(image, [
+      { opacity: 0, transform: "perspective(300px) rotateY(-86deg)" },
+      { opacity: 1, transform: "perspective(300px) rotateY(-12deg)", offset: .69 },
+      { opacity: 1, transform: "perspective(300px) rotateY(0deg)" },
+    ], 100, false, 48 + delay, "backwards");
+    transientFlash(slot, 84 + delay);
+    return;
+  }
   playVisual(back, [
     { opacity: .95, transform: "perspective(300px) rotateY(22deg)" },
     { opacity: 1, transform: "perspective(300px) rotateY(60deg)", offset: .28 },
@@ -2313,9 +2343,20 @@ function captureVisibleHand() {
 }
 
 function animateDiscardedHand(captured) {
-  const remaining = new Set(game.hand.map(card => card.id));
+  const remaining = new Map(Array.from($("hand").querySelectorAll("[data-card-id]"), node => [Number(node.dataset.cardId), node]));
+  const expiredAny = captured.some(({ node, id }) => !remaining.has(id) && node.classList.contains("card-transient"));
+  const axes = arenaAxes();
   for (const { node, rect, id, clip } of captured) {
-    if (remaining.has(id)) continue;
+    const survivor = remaining.get(id);
+    if (survivor) {
+      if (expiredAny) {
+        const shift = rect.left - arenaBox(survivor, axes).left;
+        if (Math.abs(shift) > 1) playVisual(survivor, [
+          { transform: `translateX(${shift}px)` }, { transform: "translateX(0)" },
+        ], 148);
+      }
+      continue;
+    }
     const expired = node.classList.contains("card-transient");
     const ghost = document.createElement("div");
     ghost.className = `card-flight hand-departure${expired ? " transient-departure" : ""}`;
@@ -2325,14 +2366,21 @@ function animateDiscardedHand(captured) {
       left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, clipPath: clip,
     });
     const face = node.cloneNode(true);
-    face.querySelector(".card-reveal-back")?.remove();
+    face.querySelectorAll(".card-reveal-back,.transient-flash").forEach(marker => marker.remove());
     ghost.append(face);
     effectsLayer.append(ghost);
+    if (expired) {
+      transientFlash(face);
+      playVisual(ghost, [
+        { opacity: 1 }, { opacity: .92, offset: .3 }, { opacity: 0 },
+      ], 112, true);
+      continue;
+    }
     playVisual(ghost, [
       { opacity: 1, transform: "none" },
       { opacity: .83, transform: "translateY(2px)", offset: .22 },
-      { opacity: 0, transform: `translateY(12px) scaleX(${expired ? .22 : .84}) scaleY(.9)` },
-    ], expired ? 200 : 150, true);
+      { opacity: 0, transform: "translateY(12px) scale(.84,.9)" },
+    ], 150, true);
   }
 }
 
