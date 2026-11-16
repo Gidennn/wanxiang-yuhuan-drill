@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#081525">
+  <meta name="description" content="横屏练习玉环日落海倒转，支持三分、逐鹿、大河禁用及固定局面重练。">
+  <title>玉环 · 日落海倒转训练</title>
+  <link rel="icon" href="./assets/heroes/176.jpg">
+  <link rel="preload" as="image" href="./assets/playing-card-atlas.webp" fetchpriority="high">
+  <link rel="stylesheet" href="./style.css?v=card-motion">
+</head>
+<body>
+  <audio id="game-music" preload="auto" loop hidden></audio>
+  <main id="arena" class="arena" aria-label="玉环日落海倒转训练棋盘">
+    <div class="scenery" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="identity">
+        <button class="icon-button" data-action="settings" aria-label="训练设置">⚙</button>
+        <span>日落海倒转<span class="identity-sub">玉环训练</span></span>
+      </div>
+      <div id="round-status" class="round-status">
+        <span id="round-number"></span>
+        <strong id="clock" aria-live="off"></strong>
+        <span id="phase-label">备战</span>
+        <div class="clock-track"><i id="clock-progress"></i></div>
+      </div>
+      <div class="top-actions">
+        <button class="capsule mode-button" data-action="settings"><span class="mode-dot"></span><span id="mode-label"></span></button>
+        <button class="icon-button" data-action="guide" aria-label="玩法与卡牌">?</button>
+      </div>
+    </header>
+
+    <aside class="left-hud" aria-label="棋手和核心状态">
+      <div class="player">
+        <div class="player-avatar"><img src="./assets/heroes/176.jpg" alt=""></div>
+        <div><strong>玉环</strong><small><span aria-hidden="true">♥</span> <b id="player-hp"></b></small></div>
+      </div>
+      <button class="core-panel" data-action="core-info" aria-label="阿科米亚核心详情">
+        <span class="core-mark" aria-hidden="true"><i></i></span>
+        <span class="core-text"><small>阿科米亚核心</small><strong id="core-value"></strong></span>
+      </button>
+      <div id="pulse" class="pulse" aria-live="polite"></div>
+    </aside>
+
+    <section class="field" aria-label="战场">
+      <div id="board" class="board" role="group" aria-label="己方四排七列棋盘"></div>
+      <div id="capacity" class="capacity" aria-label="上阵人数"></div>
+    </section>
+
+    <section id="shop" class="shop" aria-label="商店">
+      <div class="shop-strip">
+        <button id="lock" class="shop-icon" data-action="lock" aria-label="锁定商店" aria-pressed="false">
+          <span class="lock-shape" aria-hidden="true"></span><span id="lock-label">锁定</span>
+        </button>
+        <div class="shop-main">
+          <div id="shop-cards" class="shop-cards"></div>
+          <div class="shop-title"><div id="shop-odds" class="shop-odds" aria-label="商店品阶概率"></div></div>
+        </div>
+        <button class="shop-icon refresh" data-action="refresh" aria-label="刷新商店">
+          <span class="refresh-symbol" aria-hidden="true">⟳</span>
+          <span>刷新 <b id="refresh-cost"></b></span>
+          <span id="free-count" class="free-count"></span>
+        </button>
+      </div>
+    </section>
+
+    <aside class="right-hud" aria-label="训练局面">
+      <div id="scenario-label" class="scenario-label"></div>
+      <div class="trigger-count" id="trigger-count"></div>
+    </aside>
+
+    <div id="sell-left" class="sell-zone sell-left" data-sell="true"><span>＋1</span>出售</div>
+    <div id="sell-right" class="sell-zone sell-right" data-sell="true"><span>＋1</span>出售</div>
+    <div id="sell-bottom" class="sell-zone sell-bottom" data-sell="true">松手出售</div>
+
+    <footer class="bottom-hud">
+      <div class="lord-ui">
+        <button class="lord-portrait" data-action="music-info" aria-label="玉环指法详情">
+          <span class="lord-image"></span><span id="lord-level"></span>
+        </button>
+        <div class="lord-controls">
+          <button id="upgrade" class="upgrade" data-action="upgrade"></button>
+          <span class="song-progress"><span id="song-progress"></span><span id="song-remaining"></span></span>
+        </div>
+        <button id="music-card" class="music-card" data-action="music-info" aria-label="霓裳曲">
+          <span id="music-multiplier" class="music-multiplier" aria-hidden="true" hidden>轮指 ×2</span>
+          <span id="music-pips" class="music-notes" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <section class="hand-area" aria-label="手牌">
+        <div class="hand-caption"><span id="hand-count"></span><span id="hint"></span></div>
+        <div id="hand-viewport" class="hand-viewport"><div id="hand" class="hand"></div></div>
+      </section>
+
+      <div class="war-controls">
+        <button id="end-round" class="end-round" data-action="end"><span aria-hidden="true">⚔</span><span id="end-label">开始训练</span></button>
+        <button id="shop-toggle" class="energy-orb" data-action="shop" aria-label="开关商店" aria-expanded="true">
+          <small id="next-energy"></small><strong><span class="energy-icon" aria-hidden="true">ϟ</span><span id="energy"></span></strong><span class="orb-label">商店</span>
+        </button>
+      </div>
+    </footer>
+
+    <div id="card-inspector" class="inspector" hidden></div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <div id="effects-layer" class="effects-layer" aria-hidden="true" inert></div>
+    <div id="drag-ghost" class="drag-ghost" aria-hidden="true" inert hidden></div>
+    <div id="overlay" class="overlay" hidden></div>
+  </main>
+  <div id="rotate-note" class="rotate-note"><span aria-hidden="true">↻</span>旋转手机，横屏进入训练</div>
+  <script type="module" src="./app.js?v=card-motion"></script>
+</body>
+</html>
